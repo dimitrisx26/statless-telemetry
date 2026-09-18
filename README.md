@@ -271,17 +271,17 @@ try {
 
 `POST /v1/telemetry/ping` accepts a JSON body. The collector adds the UTC timestamp and a rotating `platform_hash`; everything else comes from the SDK.
 
-| Field | Type | Required | Constraints | Source |
+| Field | Type | Required | Allowed | Source |
 |---|---|---|---|---|
-| `package` | string | yes | `^[A-Za-z0-9@][A-Za-z0-9@._/-]{0,127}$` (scoped names allowed) | `TrackOptions.package` |
-| `version` | string | yes | `^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$` | `TrackOptions.version` |
-| `command` | string | no | `^$` or `^[A-Za-z0-9][A-Za-z0-9 .:_-]{0,63}$` | `TrackOptions.command` |
-| `duration_ms` | integer | no | `0`-`86 400 000` | `TrackOptions.durationMs` |
-| `node_major` | integer | no | `0`-`999` | detected from `process.versions.node` |
-| `os` | string | no | `^[a-z0-9][a-z0-9._-]{0,31}$` | detected from `process.platform` |
+| `package` | string | yes | npm package name, scoped names allowed (`mytool` or `@scope/mytool`). Starts with a letter, digit, or `@`; then letters, digits, and `. _ - / @`, up to 128 characters | `TrackOptions.package` |
+| `version` | string | yes | version string (`1.2.3`, `2.0.0-beta.1`). Starts with a letter or digit; then letters, digits, and `. _ + -`, up to 64 characters | `TrackOptions.version` |
+| `command` | string | no | empty, or a short name like `build` or `test:watch`. Starts with a letter or digit; then letters, digits, spaces, and `. _ : -`, up to 64 characters | `TrackOptions.command` |
+| `duration_ms` | integer | no | `0` to `86 400 000` (24 hours) | `TrackOptions.durationMs` |
+| `node_major` | integer | no | `0` to `999` | detected from `process.versions.node` |
+| `os` | string | no | lowercase platform id (`darwin`, `linux`, `win32`), up to 32 characters | detected from `process.platform` |
 | `is_ci` | boolean | no | - | detected from common CI env vars |
 
-Unknown fields are ignored, so a newer SDK can add fields without breaking an older collector. The request body is capped at 4 KB.
+Unknown fields are ignored, so a newer SDK can add fields without breaking an older collector. The request body is capped at 4 KB. Values that break the rules above are rejected with `422`; the exact patterns are defined in [`collector/app/models.py`](collector/app/models.py).
 
 > **Do not send** secrets, tokens, repository names, filesystem paths, environment values, or command arguments. The SDK never collects these; keep it that way.
 
@@ -336,7 +336,7 @@ The collector's full notice is served at `/privacy`. Operators who need to turn 
 | `GET` | `/robots.txt`, `/.well-known/security.txt` | Crawler off-switch (`Disallow: /`) and a disclosure template |
 | `GET` | `/healthz` | Liveness probe |
 
-`{package}` must match `^[A-Za-z0-9@][A-Za-z0-9@._/-]{0,127}$`.
+`{package}` is an npm package name, e.g. `mytool` or `@scope/mytool` - the same rules as the `package` field in the payload reference above.
 
 ---
 
