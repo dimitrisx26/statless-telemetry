@@ -1,0 +1,41 @@
+# Single-command standalone deploy (SQLite storage, zero config).
+# Usage: docker compose up -d --build
+# Then POST a ping to http://localhost:8000/v1/telemetry/ping
+
+services:
+  statless-telemetry:
+    build: .
+    image: statless-telemetry:latest
+    # The image runs non-root (uid 10001). On Linux, run as YOUR host uid so the
+    # ./data bind-mount stays writable for SQLite: STATLESS_UID=$(id -u) docker compose up -d
+    # On Docker Desktop (macOS/Windows) the default is fine.
+    user: "${STATLESS_UID:-10001}:${STATLESS_GID:-10001}"
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: sqlite+aiosqlite:///./data/telemetry.db
+      BASE_URL: ${BASE_URL:-http://localhost:8000}
+      SALT_ROTATE_HOURS: ${SALT_ROTATE_HOURS:-24}
+      # Require a shared token on ingest (set the same value in your SDK's
+      # STATLESS_TELEMETRY_TOKEN):
+      # INGEST_TOKEN: ${INGEST_TOKEN:-}
+      # Protect the stats/overview/export endpoints:
+      # STATS_TOKEN: ${STATS_TOKEN:-}
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+
+  # --- Optional: PostgreSQL instead of SQLite ---
+  # 1. Uncomment the db service below.
+  # 2. Set DATABASE_URL=postgresql+asyncpg://statless:statless@db:5432/telemetry
+  # db:
+  #   image: postgres:16-alpine
+  #   environment:
+  #     POSTGRES_USER: statless
+  #     POSTGRES_PASSWORD: statless
+  #     POSTGRES_DB: telemetry
+  #   volumes:
+  #     - pgdata:/var/lib/postgresql/data
+  #   restart: unless-stopped
+# volumes:
+#   pgdata:
