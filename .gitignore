@@ -1,0 +1,22 @@
+# Node / SDK
+node_modules/
+dist/
+*.tsbuildinfo
+npm-debug.log*
+
+# Python / collector
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Collector data
+collector/data/
+*.db
+*.db-journal
+
+# Env
+.env
+.env.*

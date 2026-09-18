@@ -1,0 +1,103 @@
+name: Bug report
+description: Something is broken, a count looks wrong, or the SDK misbehaves.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please **redact** tokens, private URLs, and anything you don't want public.
+        For setup or usage questions, use [Discussions](https://github.com/dimitrisx26/statless-telemetry/discussions) instead.
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which surface is affected?
+      options:
+        - SDK (packages/sdk)
+        - Ingest endpoint (POST /v1/telemetry/ping)
+        - Stats API (/v1/stats, /v1/overview, /v1/export)
+        - Docker image / deployment
+        - Ingest, storage, or other
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: The action or request, the expected result, and the actual result.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps, or the exact request. Redact tokens and IPs.
+      placeholder: |
+        1. ...
+        2. ...
+        curl -X POST 'https://YOUR-HOST/v1/telemetry/ping' -d '{"package":"my-cli","version":"1.0.0"}'
+    validations:
+      required: true
+  - type: input
+    id: cli
+    attributes:
+      label: Host CLI and argument parser (if SDK)
+      placeholder: mytool / Commander.js / Yargs / other
+    validations:
+      required: false
+  - type: dropdown
+    id: deploy
+    attributes:
+      label: How are you running the collector?
+      options:
+        - Docker Compose
+        - Docker (single container)
+        - Local (uv / uvicorn)
+        - Behind a reverse proxy
+        - Not running one (hosted collector)
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: database
+    attributes:
+      label: Database
+      options:
+        - SQLite
+        - PostgreSQL
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version / image tag / commit
+      description: SDK version, container tag, release, or commit SHA you are running.
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Relevant configuration (redacted)
+      description: Which non-default settings are set (e.g. TRUST_PROXY, INGEST_TOKEN, RETENTION_DAYS, STATLESS_TELEMETRY_URL)? Never paste secrets.
+      render: shell
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or response
+      description: Server output or SDK error around the event. Redact secrets.
+      render: shell
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and Discussions.
+          required: true
+        - label: I removed secrets, tokens, and private URLs from this report.
+          required: true
+        - label: I am running the latest release or `main`.
+          required: false

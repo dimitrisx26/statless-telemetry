@@ -1,0 +1,87 @@
+name: Feature request
+description: Suggest an SDK capability, collector metric, setting, or integration.
+title: "[feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        statless-telemetry is intentionally small and privacy-first. Requests that need
+        identifiers, cookies, filesystem paths, command arguments, or command output are
+        very unlikely to be accepted - but useful metrics, settings, and integrations are welcome.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of change is this?
+      options:
+        - SDK API or integration
+        - New collector metric or stat
+        - Configuration option
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the use case before the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would you like to see?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Existing settings, other tools, or workarounds you tried.
+    validations:
+      required: false
+  - type: input
+    id: target
+    attributes:
+      label: Target CLI / framework (for integrations)
+      placeholder: Commander.js / Yargs / oclif / other
+    validations:
+      required: false
+  - type: input
+    id: reference
+    attributes:
+      label: Reference or example (optional)
+      description: Link to the framework's docs, or a screenshot.
+    validations:
+      required: false
+  - type: dropdown
+    id: bundle
+    attributes:
+      label: Does this affect the SDK bundle size?
+      options:
+        - "No - collector/server-side only"
+        - "Yes - but it fits the 2KB gzipped budget"
+        - "Not sure"
+    validations:
+      required: true
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Would you be willing to contribute this?
+      options:
+        - "Yes, I can open a PR"
+        - "Maybe, with guidance"
+        - "No, just suggesting"
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and Discussions.
+          required: true
+        - label: This keeps the privacy-first, no-identifier design.
+          required: true
