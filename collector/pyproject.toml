@@ -2,6 +2,7 @@
 name = "statless-telemetry-collector"
 version = "0.1.0"
 description = "Self-hostable, cookie-free usage telemetry collector for developer CLIs and npm packages."
+readme = "README.md"
 requires-python = ">=3.13"
 license = { text = "AGPL-3.0-or-later" }
 authors = [{ name = "statless-telemetry contributors" }]
