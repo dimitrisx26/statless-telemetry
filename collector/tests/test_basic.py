@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import update
 
 
 @pytest.fixture
@@ -238,9 +239,7 @@ async def test_stats_date_range_filters(client: AsyncClient) -> None:
     async with storage.get_engine().begin() as conn:
         week_ago = datetime.now(UTC) - timedelta(days=7)
         await conn.execute(
-            storage.Ping.__table__.update()
-            .where(storage.Ping.package == "range-cli")
-            .values(ts=week_ago)
+            update(storage.Ping).where(storage.Ping.package == "range-cli").values(ts=week_ago)
         )
     await storage.log_ping(package="range-cli", version="1.0.1", platform_hash="b" * 32)
 
@@ -445,9 +444,7 @@ async def test_retention_deletes_old_pings_only(client: AsyncClient) -> None:
     async with storage.get_engine().begin() as conn:
         old_cutoff = datetime.now(UTC) - timedelta(days=200)
         await conn.execute(
-            storage.Ping.__table__.update()
-            .where(storage.Ping.package == "old-cli")
-            .values(ts=old_cutoff)
+            update(storage.Ping).where(storage.Ping.package == "old-cli").values(ts=old_cutoff)
         )
     deleted = await storage.delete_old_events(180)
     assert deleted == 1
