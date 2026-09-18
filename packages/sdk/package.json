@@ -1,7 +1,7 @@
 {
   "name": "statless-telemetry",
   "version": "0.1.0",
-  "description": "Zero-dependency, privacy-first usage telemetry for developer CLIs and npm packages.",
+  "description": "Zero-dependency, cookie-free usage telemetry for developer CLIs and npm packages. Opt-out aware, no IPs stored, works standalone or self-hosted.",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
@@ -38,10 +38,20 @@
   },
   "keywords": [
     "telemetry",
+    "usage-analytics",
     "analytics",
     "cli",
     "npm",
+    "node",
     "privacy",
+    "privacy-first",
+    "cookie-free",
+    "gdpr",
+    "do-not-track",
+    "opt-out",
+    "self-hosted",
+    "instrumentation",
+    "developer-tools",
     "statless"
   ],
   "repository": {
