@@ -26,7 +26,8 @@ All settings are overridable via environment variables:
                     placeholder before going public (default: mailto:security@YOUR-DOMAIN.example)
     SECURITY_POLICY Optional Policy URL for /.well-known/security.txt (e.g. your VDP or ToS)
     TELEMETRY_HOST / TELEMETRY_PORT  Bind address for the `statless-telemetry` entrypoint
-                    (namespaced to avoid colliding with shell/CI HOST & PORT; defaults 0.0.0.0 / 8000)
+                    (namespaced to avoid colliding with shell/CI HOST & PORT; defaults
+                    0.0.0.0 / 8000)
 """
 
 from __future__ import annotations
