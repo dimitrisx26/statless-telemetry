@@ -20,15 +20,17 @@ import logging
 import re
 import secrets
 import time
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator, Iterable, MutableMapping
+from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import FastAPI, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from sqlalchemy.exc import SQLAlchemyError
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from . import __version__
 from . import storage as db
@@ -48,7 +50,8 @@ PACKAGE_RE = re.compile(PACKAGE_NAME_PATTERN)
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
-def _no_store(resp: Response) -> Response:
+def _no_store[T: Response](resp: T) -> T:
+    """Attach the collector's hardening headers, preserving the concrete response type."""
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     resp.headers["Pragma"] = "no-cache"
     resp.headers["Expires"] = "0"
@@ -133,10 +136,8 @@ async def _stop_rotation_loop() -> None:
     task, _rotation_task = _rotation_task, None
     if task is not None and not task.done():
         task.cancel()
-        try:
+        with suppress(asyncio.CancelledError):
             await task
-        except asyncio.CancelledError:
-            pass
 
 
 # --------------------------------------------------------------------------- #
@@ -201,16 +202,17 @@ _limiter = RateLimiter(get_settings().rate_limit)
 class BodyLimitMiddleware:
     """Reject POST/PUT/PATCH bodies over `max_bytes` (413) before parsing; chunked-safe."""
 
-    def __init__(self, app, max_bytes: int = 4096) -> None:
+    def __init__(self, app: ASGIApp, max_bytes: int = 4096) -> None:
         self.app = app
         self.max_bytes = max_bytes
 
-    async def __call__(self, scope, receive, send):
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http" or scope.get("method") not in ("POST", "PUT", "PATCH"):
             await self.app(scope, receive, send)
             return
         declared: int | None = None
-        for name, value in scope.get("headers", []):
+        headers: Iterable[tuple[bytes, bytes]] = scope.get("headers", [])
+        for name, value in headers:
             if name == b"content-length":
                 try:
                     declared = int(value)
@@ -230,7 +232,7 @@ class BodyLimitMiddleware:
             message = await receive()
             if message["type"] != "http.request":
                 break
-            chunk = message.get("body", b"")
+            chunk: bytes = message.get("body", b"")
             total += len(chunk)
             if total > self.max_bytes:
                 await self._reject(scope, receive, send)
@@ -241,7 +243,7 @@ class BodyLimitMiddleware:
         body = b"".join(chunks)
         sent = False
 
-        async def replay():
+        async def replay() -> MutableMapping[str, Any]:
             nonlocal sent
             if sent:
                 return {"type": "http.request", "body": b"", "more_body": False}
@@ -250,7 +252,7 @@ class BodyLimitMiddleware:
 
         await self.app(scope, replay, send)
 
-    async def _reject(self, scope, receive, send) -> None:
+    async def _reject(self, scope: Scope, receive: Receive, send: Send) -> None:
         resp = _no_store(JSONResponse({"ok": False, "error": "payload too large"}, status_code=413))
         await resp(scope, receive, send)
 
@@ -275,12 +277,14 @@ def _stats_authorized(token: str) -> bool:
 
 
 def _parse_date(value: str) -> str | None:
+    """Return the value when it is a sane YYYY-MM-DD, else None."""
     if not _DATE_RE.match(value):
         return None
     try:
-        return value if datetime.fromisoformat(value) else None
+        datetime.fromisoformat(value)
     except ValueError:
         return None
+    return value
 
 
 def _validated_dates(since: str, to: str) -> tuple[str, str] | JSONResponse:
@@ -313,10 +317,8 @@ async def lifespan(app: FastAPI):
     task = asyncio.create_task(retention_loop())
     yield
     task.cancel()
-    try:
+    with suppress(asyncio.CancelledError):
         await task
-    except asyncio.CancelledError:
-        pass
     await _stop_rotation_loop()
     await db.close_db()
 
@@ -335,7 +337,7 @@ async def _validation_no_store(request: Request, exc: RequestValidationError) ->
 # Routes                                                                      #
 # --------------------------------------------------------------------------- #
 @app.get("/healthz")
-async def healthz() -> dict:
+async def healthz() -> dict[str, bool]:
     return {"ok": True}
 
 
@@ -366,9 +368,7 @@ async def ping(ping: TelemetryPing, request: Request) -> Response:
     if not _ingest_allowed(request):
         return _no_store(Response(status_code=401))
     if not _limiter.allow(_socket_ip(request)):
-        return _no_store(
-            Response(status_code=429, headers={"Retry-After": "60"})
-        )
+        return _no_store(Response(status_code=429, headers={"Retry-After": "60"}))
     # Ingest can be turned off without breaking installed clients: accept and drop.
     if not get_settings().telemetry_enabled:
         return _no_store(Response(status_code=204))
@@ -399,8 +399,13 @@ def _stats_token(request: Request, query_token: str) -> str:
 
 @app.get("/v1/stats/{package:path}", response_model=PackageStats)
 async def stats(
-    package: str, request: Request, response: Response, token: str = "", since: str = "", to: str = ""
-) -> PackageStats:
+    package: str,
+    request: Request,
+    response: Response,
+    token: str = "",
+    since: str = "",
+    to: str = "",
+) -> PackageStats | JSONResponse:
     if not _valid_package(package):
         return _no_store(JSONResponse({"ok": False, "error": "invalid package"}, status_code=400))
     if not _stats_authorized(_stats_token(request, token)):
@@ -421,7 +426,7 @@ async def stats(
 @app.get("/v1/overview", response_model=OverviewResponse)
 async def overview(
     request: Request, response: Response, token: str = "", prefix: str = ""
-) -> OverviewResponse:
+) -> OverviewResponse | JSONResponse:
     """Per-package totals, busiest first. Optional `prefix` scopes to a package prefix."""
     if prefix and not _valid_package(prefix):
         return _no_store(JSONResponse({"ok": False, "error": "invalid prefix"}, status_code=400))
@@ -435,9 +440,7 @@ async def overview(
             JSONResponse({"ok": False, "error": "overview unavailable"}, status_code=500)
         )
     _no_store(response)
-    return OverviewResponse(
-        packages=[PackageOverview(**p) for p in packages], count=len(packages)
-    )
+    return OverviewResponse(packages=[PackageOverview(**p) for p in packages], count=len(packages))
 
 
 @app.get("/v1/export/{package:path}", include_in_schema=False)
@@ -467,7 +470,7 @@ async def export(package: str, request: Request, token: str = "") -> Response:
 @app.delete("/v1/packages/{package:path}", response_model=ErasureResult)
 async def delete_package(
     package: str, request: Request, response: Response, token: str = ""
-) -> ErasureResult:
+) -> ErasureResult | JSONResponse:
     """GDPR Art. 17 erasure: hard-delete every stored ping for one package.
 
     Requires STATS_TOKEN to be configured AND supplied, so a public collector
@@ -505,7 +508,8 @@ _PRIVACY_HTML = """<!doctype html>
 <style>
   :root { color-scheme: light dark; }
   body { max-width: 42rem; margin: 3rem auto; padding: 0 1.25rem; line-height: 1.6;
-         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+         Helvetica, Arial, sans-serif; }
   h1 { font-size: 1.5rem; } h2 { font-size: 1.05rem; margin-top: 2rem; }
   code { background: rgba(127,127,127,.18); padding: .1rem .3rem; border-radius: .25rem; }
 </style>
