@@ -1,14 +1,18 @@
+# pyright: reportPrivateUsage=false
 """Smoke tests for the telemetry collector (SQLite per-test temp file)."""
 
 import asyncio
 import json
+from collections.abc import AsyncIterator
+from pathlib import Path
+from typing import Any
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
 
 @pytest.fixture
-async def client(tmp_path):
+async def client(tmp_path: Path) -> AsyncIterator[AsyncClient]:
     # Isolate each test to a temp SQLite file (shared in-memory DBs don't survive pools).
     import os
 
@@ -30,7 +34,7 @@ async def client(tmp_path):
     get_settings.cache_clear()
 
 
-def _ping(**overrides) -> dict:
+def _ping(**overrides: Any) -> dict[str, Any]:
     payload = {
         "package": "my-cli",
         "version": "1.2.3",
@@ -44,13 +48,13 @@ def _ping(**overrides) -> dict:
     return payload
 
 
-async def test_healthz(client):
+async def test_healthz(client: AsyncClient) -> None:
     r = await client.get("/healthz")
     assert r.status_code == 200
     assert r.json() == {"ok": True}
 
 
-async def test_index_reports_usage(client):
+async def test_index_reports_usage(client: AsyncClient) -> None:
     r = await client.get("/")
     assert r.status_code == 200
     body = r.json()
@@ -59,7 +63,7 @@ async def test_index_reports_usage(client):
     assert r.headers["Cache-Control"].startswith("no-store")
 
 
-async def test_ping_returns_204_and_stores(client):
+async def test_ping_returns_204_and_stores(client: AsyncClient) -> None:
     from app import storage
 
     r = await client.post("/v1/telemetry/ping", json=_ping())
@@ -69,7 +73,7 @@ async def test_ping_returns_204_and_stores(client):
     assert await storage.count_pings("my-cli") == 1
 
 
-async def test_ping_scoped_package_name(client):
+async def test_ping_scoped_package_name(client: AsyncClient) -> None:
     from app import storage
 
     r = await client.post("/v1/telemetry/ping", json=_ping(package="@acme/tool"))
@@ -90,24 +94,24 @@ async def test_ping_scoped_package_name(client):
         {"os": "Darwin!!"},
     ],
 )
-async def test_ping_rejects_invalid_payloads(client, bad):
+async def test_ping_rejects_invalid_payloads(client: AsyncClient, bad: dict[str, Any]) -> None:
     r = await client.post("/v1/telemetry/ping", json=_ping(**bad))
     assert r.status_code == 422
     assert r.headers["Cache-Control"].startswith("no-store")
 
 
-async def test_ping_ignores_unknown_fields(client):
+async def test_ping_ignores_unknown_fields(client: AsyncClient) -> None:
     r = await client.post("/v1/telemetry/ping", json=_ping(extra="nope", args=["--secret"]))
     assert r.status_code == 204  # pydantic ignores unknown fields; nothing retained
 
 
-async def test_ping_rejects_oversize_body(client):
+async def test_ping_rejects_oversize_body(client: AsyncClient) -> None:
     r = await client.post("/v1/telemetry/ping", content=b"x" * 100_000)
     assert r.status_code == 413
     assert r.headers["Cache-Control"].startswith("no-store")
 
 
-async def test_ingest_token_gate(client, monkeypatch):
+async def test_ingest_token_gate(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
     from app.config import get_settings
 
     monkeypatch.setenv("INGEST_TOKEN", "shared-secret")
@@ -135,7 +139,9 @@ async def test_ingest_token_gate(client, monkeypatch):
         get_settings.cache_clear()
 
 
-async def test_telemetry_disabled_accepts_and_drops(client, monkeypatch):
+async def test_telemetry_disabled_accepts_and_drops(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from app import storage
     from app.config import get_settings
 
@@ -149,7 +155,7 @@ async def test_telemetry_disabled_accepts_and_drops(client, monkeypatch):
         get_settings.cache_clear()
 
 
-async def test_rate_limit_returns_429(client):
+async def test_rate_limit_returns_429(client: AsyncClient) -> None:
     from app.main import _limiter
 
     old = _limiter.limit
@@ -164,7 +170,7 @@ async def test_rate_limit_returns_429(client):
     assert codes[2:] == [429, 429]
 
 
-async def test_stats_aggregates(client):
+async def test_stats_aggregates(client: AsyncClient) -> None:
     from datetime import UTC, datetime
 
     await client.post(
@@ -194,7 +200,7 @@ async def test_stats_aggregates(client):
     assert data["daily"][today]["uniques"] == 2
 
 
-async def test_stats_scoped_package_via_path(client):
+async def test_stats_scoped_package_via_path(client: AsyncClient) -> None:
     from app import storage
 
     await storage.log_ping(
@@ -206,11 +212,11 @@ async def test_stats_scoped_package_via_path(client):
     assert r.json()["pings"] == 1
 
 
-async def test_stats_rejects_bad_package(client):
+async def test_stats_rejects_bad_package(client: AsyncClient) -> None:
     assert (await client.get("/v1/stats/bad%20name")).status_code == 400
 
 
-async def test_stats_token_gate(client, monkeypatch):
+async def test_stats_token_gate(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
     from app.config import get_settings
 
     monkeypatch.setenv("STATS_TOKEN", "shh")
@@ -223,7 +229,7 @@ async def test_stats_token_gate(client, monkeypatch):
         get_settings.cache_clear()
 
 
-async def test_stats_date_range_filters(client):
+async def test_stats_date_range_filters(client: AsyncClient) -> None:
     from datetime import UTC, datetime, timedelta
 
     from app import storage
@@ -253,17 +259,19 @@ async def test_stats_date_range_filters(client):
     assert both.status_code == 400
 
 
-async def test_stats_rejects_bad_dates(client):
+async def test_stats_rejects_bad_dates(client: AsyncClient) -> None:
     assert (await client.get("/v1/stats/my-cli?since=not-a-date")).status_code == 400
     assert (await client.get("/v1/stats/my-cli?to=2026-13-40")).status_code == 400
 
 
-async def test_stats_error_does_not_leak_exception(client, monkeypatch):
+async def test_stats_error_does_not_leak_exception(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from sqlalchemy.exc import SQLAlchemyError
 
     from app import storage
 
-    async def boom(_package, since=None, to=None):
+    async def boom(_package: str, since: str | None = None, to: str | None = None) -> None:
         raise SQLAlchemyError("host=db.internal user=secret")
 
     monkeypatch.setattr(storage, "get_package_stats", boom)
@@ -272,7 +280,7 @@ async def test_stats_error_does_not_leak_exception(client, monkeypatch):
     assert "secret" not in r.text
 
 
-async def test_overview_lists_packages_and_scopes_by_prefix(client):
+async def test_overview_lists_packages_and_scopes_by_prefix(client: AsyncClient) -> None:
     from app import storage
 
     await storage.log_ping(package="site-a", version="1.0.0", platform_hash="a" * 32)
@@ -293,7 +301,9 @@ async def test_overview_lists_packages_and_scopes_by_prefix(client):
     assert {p["package"] for p in scoped["packages"]} == {"site_a"}
 
 
-async def test_overview_rejects_bad_prefix_and_gates_token(client, monkeypatch):
+async def test_overview_rejects_bad_prefix_and_gates_token(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from app.config import get_settings
 
     assert (await client.get("/v1/overview?prefix=bad prefix")).status_code == 400
@@ -306,7 +316,9 @@ async def test_overview_rejects_bad_prefix_and_gates_token(client, monkeypatch):
         get_settings.cache_clear()
 
 
-async def test_export_jsonl_gated_by_stats_token(client, monkeypatch):
+async def test_export_jsonl_gated_by_stats_token(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from app import storage
     from app.config import get_settings
 
@@ -334,7 +346,9 @@ async def test_export_jsonl_gated_by_stats_token(client, monkeypatch):
         get_settings.cache_clear()
 
 
-async def test_stats_accepts_token_header(client, monkeypatch):
+async def test_stats_accepts_token_header(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from app.config import get_settings
 
     monkeypatch.setenv("STATS_TOKEN", "shh")
@@ -348,7 +362,9 @@ async def test_stats_accepts_token_header(client, monkeypatch):
         get_settings.cache_clear()
 
 
-async def test_erasure_requires_stats_token(client, monkeypatch):
+async def test_erasure_requires_stats_token(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from app import storage
     from app.config import get_settings
 
@@ -374,11 +390,11 @@ async def test_erasure_requires_stats_token(client, monkeypatch):
         get_settings.cache_clear()
 
 
-async def test_erasure_rejects_bad_package(client):
+async def test_erasure_rejects_bad_package(client: AsyncClient) -> None:
     assert (await client.delete("/v1/packages/bad%20name")).status_code == 400
 
 
-async def test_public_export_omits_platform_hash(client):
+async def test_public_export_omits_platform_hash(client: AsyncClient) -> None:
     from app import storage
 
     await storage.log_ping(package="pub-cli", version="1.0.0", platform_hash="a" * 32)
@@ -389,7 +405,9 @@ async def test_public_export_omits_platform_hash(client):
     assert "platform_hash" not in rows[0]
 
 
-async def test_security_txt_is_configurable(client, monkeypatch):
+async def test_security_txt_is_configurable(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from app.config import get_settings
 
     monkeypatch.setenv("SECURITY_CONTACT", "mailto:sec@example.com")
@@ -404,7 +422,7 @@ async def test_security_txt_is_configurable(client, monkeypatch):
         get_settings.cache_clear()
 
 
-async def test_daily_buckets_stay_utc_when_tz_stored_naive(client):
+async def test_daily_buckets_stay_utc_when_tz_stored_naive(client: AsyncClient) -> None:
     # SQLite path: daily keys must remain plain UTC dates regardless of storage.
     from datetime import UTC, datetime
 
@@ -417,7 +435,7 @@ async def test_daily_buckets_stay_utc_when_tz_stored_naive(client):
     assert data["daily"][today] == {"pings": 1, "uniques": 1}
 
 
-async def test_retention_deletes_old_pings_only(client):
+async def test_retention_deletes_old_pings_only(client: AsyncClient) -> None:
     from datetime import UTC, datetime, timedelta
 
     from app import storage
@@ -437,7 +455,7 @@ async def test_retention_deletes_old_pings_only(client):
     assert await storage.count_pings("old-cli") == 0
 
 
-async def test_retention_zero_disables_and_purge_erases(client):
+async def test_retention_zero_disables_and_purge_erases(client: AsyncClient) -> None:
     from app import storage
 
     await storage.log_ping(package="keep-cli", version="1.0.0", platform_hash="a" * 32)
@@ -447,7 +465,7 @@ async def test_retention_zero_disables_and_purge_erases(client):
     assert await storage.count_pings("keep-cli") == 0
 
 
-def test_platform_hash_is_stable_within_epoch():
+def test_platform_hash_is_stable_within_epoch() -> None:
     from app.main import platform_hash
 
     assert platform_hash("1.2.3.4", "linux") == platform_hash("1.2.3.4", "linux")
@@ -456,7 +474,7 @@ def test_platform_hash_is_stable_within_epoch():
     assert len(platform_hash("1.2.3.4", "linux")) == 32
 
 
-def test_secret_salt_is_deterministic(monkeypatch):
+def test_secret_salt_is_deterministic(monkeypatch: pytest.MonkeyPatch) -> None:
     from app import main
 
     monkeypatch.setenv("SERVER_SECRET", "topsecret")
@@ -469,7 +487,7 @@ def test_secret_salt_is_deterministic(monkeypatch):
         get_settings.cache_clear()
 
 
-async def test_privacy_page_carries_locked_csp(client):
+async def test_privacy_page_carries_locked_csp(client: AsyncClient) -> None:
     r = await client.get("/privacy")
     assert r.status_code == 200
     assert "DO_NOT_TRACK" in r.text
@@ -480,7 +498,7 @@ async def test_privacy_page_carries_locked_csp(client):
     assert r.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
 
 
-async def test_robots_and_security_txt(client):
+async def test_robots_and_security_txt(client: AsyncClient) -> None:
     r = await client.get("/robots.txt")
     assert r.status_code == 200
     assert "Disallow: /" in r.text
@@ -490,7 +508,7 @@ async def test_robots_and_security_txt(client):
     assert "Contact:" in s.text
 
 
-async def test_rotation_loop_start_stop():
+async def test_rotation_loop_start_stop() -> None:
     from app import main
 
     main._start_rotation_loop()
