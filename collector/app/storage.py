@@ -19,11 +19,15 @@ SQLite is the default (zero-config single file). Point ``DATABASE_URL`` at
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
+from typing import Any, cast
 
 from sqlalchemy import (
     Boolean,
+    ColumnElement,
+    CursorResult,
     DateTime,
     Index,
     Integer,
@@ -35,7 +39,12 @@ from sqlalchemy import (
     func,
     select,
 )
-from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -63,7 +72,16 @@ class Ping(Base):
 
 
 _engine: AsyncEngine | None = None
-_session_factory: async_sessionmaker | None = None
+_session_factory: async_sessionmaker[AsyncSession] | None = None
+
+
+@asynccontextmanager
+async def _session() -> AsyncGenerator[AsyncSession]:
+    """Yield a session, or raise if init_db() has not run (no assert - survives -O)."""
+    if _session_factory is None:
+        raise RuntimeError("call init_db() first")
+    async with _session_factory() as session:
+        yield session
 
 
 def get_engine() -> AsyncEngine:
@@ -73,7 +91,7 @@ def get_engine() -> AsyncEngine:
         from .config import get_settings
 
         url = get_settings().database_url
-        kwargs: dict = {}
+        kwargs: dict[str, Any] = {}
         if url.startswith("sqlite"):
             kwargs = {"connect_args": {"check_same_thread": False}}
         _engine = create_async_engine(url, pool_pre_ping=True, **kwargs)
@@ -121,8 +139,7 @@ async def log_ping(
     platform_hash: str = "",
 ) -> None:
     """Insert one telemetry ping."""
-    assert _session_factory is not None, "call init_db() first"
-    async with _session_factory() as session:
+    async with _session() as session:
         session.add(
             Ping(
                 ts=datetime.now(UTC),
@@ -141,8 +158,7 @@ async def log_ping(
 
 async def count_pings(package: str) -> int:
     """Total stored pings for one package (test/debug helper)."""
-    assert _session_factory is not None, "call init_db() first"
-    async with _session_factory() as session:
+    async with _session() as session:
         return (
             await session.execute(
                 select(func.count()).select_from(Ping).where(Ping.package == package)
@@ -160,32 +176,34 @@ async def delete_old_events(retention_days: int) -> int:
     if retention_days <= 0:
         return 0
     cutoff = datetime.now(UTC) - timedelta(days=retention_days)
-    assert _session_factory is not None, "call init_db() first"
-    async with _session_factory() as session:
-        result = await session.execute(delete(Ping).where(Ping.ts < cutoff))
+    async with _session() as session:
+        result = cast(
+            "CursorResult[Any]",
+            await session.execute(delete(Ping).where(Ping.ts < cutoff)),
+        )
         await session.commit()
         return int(result.rowcount or 0)
 
 
 async def purge_package(package: str) -> int:
     """Hard-delete all pings for one package (Art. 17 erasure helper)."""
-    assert _session_factory is not None, "call init_db() first"
-    async with _session_factory() as session:
-        result = await session.execute(delete(Ping).where(Ping.package == package))
+    async with _session() as session:
+        result = cast(
+            "CursorResult[Any]", await session.execute(delete(Ping).where(Ping.package == package))
+        )
         await session.commit()
         return int(result.rowcount or 0)
 
 
 async def iter_export(
     package: str, include_platform_hash: bool = True
-) -> AsyncIterator[dict]:
+) -> AsyncIterator[dict[str, Any]]:
     """Raw ping rows for one package, oldest first, streamed (NDJSON, Art. 15/20 access).
 
     Streaming keeps memory flat no matter how many pings a package has.
     ``include_platform_hash=False`` omits the pseudonymous identifier column -
     used when stats are public, so per-row pseudonyms are not published openly.
     """
-    assert _session_factory is not None, "call init_db() first"
     fields = ["ts", "package", "version", "command", "duration_ms", "node_major", "os", "is_ci"]
     columns = [
         Ping.ts,
@@ -200,12 +218,12 @@ async def iter_export(
     if include_platform_hash:
         fields.append("platform_hash")
         columns.append(Ping.platform_hash)
-    async with _session_factory() as session:
+    async with _session() as session:
         result = await session.stream(
             select(*columns).where(Ping.package == package).order_by(Ping.ts)
         )
         async for row in result:
-            out: dict = {}
+            out: dict[str, Any] = {}
             for name, value in zip(fields, row, strict=True):
                 if name == "ts":
                     out["ts"] = value.isoformat() if hasattr(value, "isoformat") else str(value)
@@ -221,7 +239,7 @@ def _like_prefix(prefix: str) -> str:
     return prefix.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
 
 
-def _utc_day_expr():
+def _utc_day_expr() -> ColumnElement[Any]:
     """SQL expression for the UTC calendar day of ``Ping.ts``.
 
     SQLite stores UTC ISO strings, so ``date(ts)`` is already UTC. On Postgres,
@@ -234,9 +252,8 @@ def _utc_day_expr():
     return func.date(Ping.ts)
 
 
-async def get_overview(prefix: str | None = None) -> list[dict]:
+async def get_overview(prefix: str | None = None) -> list[dict[str, Any]]:
     """Per-package totals across the whole collector, busiest first."""
-    assert _session_factory is not None, "call init_db() first"
     ci_runs = func.sum(case((Ping.is_ci.is_(True), 1), else_=0)).label("ci")
     stmt = (
         select(
@@ -251,7 +268,7 @@ async def get_overview(prefix: str | None = None) -> list[dict]:
     )
     if prefix:
         stmt = stmt.where(Ping.package.like(_like_prefix(prefix) + "%", escape="\\"))
-    async with _session_factory() as session:
+    async with _session() as session:
         rows = (await session.execute(stmt)).all()
     return [
         {
@@ -269,12 +286,11 @@ async def get_package_stats(
     package: str,
     since: str | None = None,
     to: str | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Aggregate counts for one package: totals, versions, commands, OS, Node, daily.
 
     since/to are inclusive UTC date bounds (YYYY-MM-DD), validated by the route.
     """
-    assert _session_factory is not None, "call init_db() first"
     conditions = [Ping.package == package]
     if since:
         conditions.append(Ping.ts >= datetime.fromisoformat(since).replace(tzinfo=UTC))
@@ -282,7 +298,7 @@ async def get_package_stats(
         upper = datetime.fromisoformat(to).replace(tzinfo=UTC) + timedelta(days=1)
         conditions.append(Ping.ts < upper)
     where = and_(*conditions)
-    async with _session_factory() as session:
+    async with _session() as session:
         total, ci_count, uniques, avg_duration, max_duration = (
             await session.execute(
                 select(
