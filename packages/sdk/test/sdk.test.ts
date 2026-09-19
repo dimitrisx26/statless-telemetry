@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { configure, track } from "../src/index";
+import { configure, DEFAULT_HOSTED_ENDPOINT, isOptedOut, isTelemetryActive, track } from "../src/index";
 
 type FetchCall = { url: string; init: RequestInit };
 
@@ -18,6 +18,7 @@ function payloadOf(call: FetchCall) {
   return JSON.parse(String(call.init.body));
 }
 
+const TEST_ENDPOINT = "https://telemetry.example.com/v1/telemetry/ping";
 const originalEnv = { ...process.env };
 
 beforeEach(() => {
@@ -27,7 +28,7 @@ beforeEach(() => {
   delete process.env.STATLESS_TELEMETRY_TOKEN;
   delete process.env.CI;
   delete process.env.GITHUB_ACTIONS;
-  configure({ enabled: true });
+  configure({ enabled: true, endpoint: TEST_ENDPOINT });
 });
 
 afterEach(() => {
@@ -124,5 +125,34 @@ describe("track", () => {
       }),
     );
     await expect(track({ package: "my-cli", version: "1.0.0" })).resolves.toBeUndefined();
+  });
+
+  it("does not send when no endpoint is configured", async () => {
+    configure({ endpoint: "" });
+    delete process.env.STATLESS_TELEMETRY_URL;
+    const { fn } = mockFetch();
+    await track({ package: "my-cli", version: "1.0.0" });
+    expect(fn).not.toHaveBeenCalled();
+  });
+
+  it("reports isTelemetryActive correctly", () => {
+    expect(isTelemetryActive()).toBe(true);
+    configure({ enabled: false });
+    expect(isTelemetryActive()).toBe(false);
+
+    configure({ enabled: true, endpoint: "" });
+    delete process.env.STATLESS_TELEMETRY_URL;
+    expect(isTelemetryActive()).toBe(false);
+    expect(isTelemetryActive("http://localhost:8000/v1/telemetry/ping")).toBe(true);
+
+    process.env.DO_NOT_TRACK = "1";
+    expect(isTelemetryActive("http://localhost:8000/v1/telemetry/ping")).toBe(false);
+  });
+
+  it("exports isOptedOut and DEFAULT_HOSTED_ENDPOINT", () => {
+    expect(isOptedOut()).toBe(false);
+    process.env.STATLESS_OPTOUT = "1";
+    expect(isOptedOut()).toBe(true);
+    expect(DEFAULT_HOSTED_ENDPOINT).toBe("https://telemetry.statless.dev/v1/telemetry/ping");
   });
 });

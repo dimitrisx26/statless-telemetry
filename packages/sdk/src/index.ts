@@ -2,18 +2,22 @@
  * statless-telemetry - zero-dependency usage telemetry for developer CLIs.
  *
  * ```ts
- * import { track } from "statless-telemetry";
+ * import { configure, track } from "statless-telemetry";
+ * configure({ endpoint: "https://telemetry.example.com/v1/telemetry/ping" });
  * const started = Date.now();
  * // ... run the command ...
  * void track({ package: "mytool", version: "1.2.3", command: "build", durationMs: Date.now() - started });
  * ```
  *
- * Privacy: nothing is sent when `DO_NOT_TRACK=1` or `STATLESS_OPTOUT=1`, and no
- * filesystem paths, arguments, or command output ever leave the machine.
+ * Privacy: nothing is sent unless an endpoint is configured, when `DO_NOT_TRACK=1`
+ * or `STATLESS_OPTOUT=1` is set, or when explicitly disabled. No arguments,
+ * paths, or command output ever leave the machine.
  */
 
 import { endpointOverride, ingestToken, isCI, isOptedOut, nodeMajor, osPlatform } from "./environment";
 import { send } from "./transport";
+
+export { isOptedOut } from "./environment";
 
 /** The wire payload sent to `POST /v1/telemetry/ping`. */
 export interface TelemetryPayload {
@@ -45,22 +49,31 @@ export interface TrackOptions {
 
 /** Process-wide SDK configuration. */
 export interface TelemetryConfig {
-  /** Collector endpoint. Defaults to `STATLESS_TELEMETRY_URL`, then the hosted collector. */
+  /** Collector endpoint. Defaults to `STATLESS_TELEMETRY_URL` env var. */
   endpoint?: string;
   /** Set `false` to disable telemetry for the whole process. */
   enabled?: boolean;
 }
 
-/** Hosted default collector. Point elsewhere with `STATLESS_TELEMETRY_URL` or `configure`. */
-const DEFAULT_ENDPOINT = "https://telemetry.statless.dev/v1/telemetry/ping";
+/** Public hosted collector endpoint reference. */
+export const DEFAULT_HOSTED_ENDPOINT = "https://telemetry.statless.dev/v1/telemetry/ping";
 
-let endpoint = endpointOverride() || DEFAULT_ENDPOINT;
+let endpoint = endpointOverride();
 let enabled = true;
 
 /** Adjust the endpoint or turn telemetry off for the whole process. */
 export function configure(config: TelemetryConfig): void {
-  if (config.endpoint) endpoint = config.endpoint;
+  if (typeof config.endpoint === "string") endpoint = config.endpoint;
   if (typeof config.enabled === "boolean") enabled = config.enabled;
+}
+
+/**
+ * Returns true if telemetry is enabled, an endpoint is configured, and the
+ * environment has not opted out (neither DO_NOT_TRACK=1 nor STATLESS_OPTOUT=1).
+ */
+export function isTelemetryActive(customEndpoint?: string): boolean {
+  if (!enabled || isOptedOut()) return false;
+  return Boolean(customEndpoint || endpoint || endpointOverride());
 }
 
 /**
@@ -68,10 +81,11 @@ export function configure(config: TelemetryConfig): void {
  *
  * Returns a promise that always resolves (never rejects), so callers can
  * `await track(...)` before exit, or fire it and forget. No-ops without any
- * network activity when telemetry is disabled or the developer opted out.
+ * network activity when telemetry is disabled, unconfigured, or the developer opted out.
  */
 export function track(options: TrackOptions): Promise<void> {
-  if (!enabled || isOptedOut()) return Promise.resolve();
+  const targetEndpoint = options.endpoint || endpoint || endpointOverride();
+  if (!enabled || !targetEndpoint || isOptedOut()) return Promise.resolve();
 
   const payload: TelemetryPayload = {
     package: options.package,
@@ -85,5 +99,5 @@ export function track(options: TrackOptions): Promise<void> {
     payload.duration_ms = Math.max(0, Math.round(options.durationMs));
   }
 
-  return send(options.endpoint || endpoint, payload, ingestToken());
+  return send(targetEndpoint, payload, ingestToken());
 }
