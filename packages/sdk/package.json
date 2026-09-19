@@ -1,7 +1,7 @@
 {
   "name": "statless-telemetry",
   "version": "0.1.0",
-  "description": "Zero-dependency, cookie-free usage telemetry for developer CLIs and npm packages. Opt-out aware, no IPs stored, works standalone or self-hosted.",
+  "description": "Zero-dependency, cookie-free usage telemetry for developer CLIs and npm packages. Opt-out aware, pseudonymous rotating hashes, works standalone or self-hosted.",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
@@ -47,6 +47,7 @@
     "privacy-first",
     "cookie-free",
     "gdpr",
+    "eprivacy",
     "do-not-track",
     "opt-out",
     "self-hosted",
