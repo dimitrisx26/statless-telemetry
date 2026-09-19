@@ -2,7 +2,7 @@
  * statless-telemetry - zero-dependency usage telemetry for developer CLIs.
  *
  * ```ts
- * import { configure, track } from "statless-telemetry";
+ * import { configure, track } from "@statless/telemetry";
  * configure({ endpoint: "https://telemetry.example.com/v1/telemetry/ping" });
  * const started = Date.now();
  * // ... run the command ...

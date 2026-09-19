@@ -17,8 +17,8 @@
 </p>
 
 <p>
-  <a href="https://www.npmjs.com/package/statless-telemetry">
-    <img src="https://img.shields.io/npm/v/statless-telemetry?style=flat-square&amp;logo=npm&amp;logoColor=white" alt="npm version" />
+  <a href="https://www.npmjs.com/package/@statless/telemetry">
+    <img src="https://img.shields.io/npm/v/@statless/telemetry?style=flat-square&amp;logo=npm&amp;logoColor=white" alt="npm version" />
   </a>
   <a href="packages/sdk">
     <img src="https://img.shields.io/badge/bundle-%3C2KB%20gzipped-8B5CF6?style=flat-square" alt="Bundle size under 2KB gzipped" />
@@ -139,13 +139,13 @@ STATLESS_UID=$(id -u) STATLESS_GID=$(id -g) docker compose up -d --build
 ### 2 · Install the SDK
 
 ```bash
-npm install statless-telemetry
+npm install @statless/telemetry
 ```
 
 ### 3 · Send a ping
 
 ```ts
-import { configure, track } from "statless-telemetry";
+import { configure, track } from "@statless/telemetry";
 
 // Point to your collector (or set STATLESS_TELEMETRY_URL in your environment)
 configure({ endpoint: "http://localhost:8000/v1/telemetry/ping" });
@@ -204,7 +204,7 @@ export STATLESS_TELEMETRY_URL="https://telemetry.example.com/v1/telemetry/ping"
 ```ts
 #!/usr/bin/env node
 import { Command } from "commander";
-import { track } from "statless-telemetry";
+import { track } from "@statless/telemetry";
 import pkg from "./package.json" with { type: "json" };
 
 const started = Date.now();
@@ -234,7 +234,7 @@ await program.parseAsync();
 #!/usr/bin/env node
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
-import { track } from "statless-telemetry";
+import { track } from "@statless/telemetry";
 import pkg from "./package.json" with { type: "json" };
 
 const started = Date.now();

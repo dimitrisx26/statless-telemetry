@@ -1,14 +1,14 @@
-# statless-telemetry SDK
+# @statless/telemetry SDK
 
 Zero-dependency, privacy-first usage telemetry for developer CLIs and npm packages.
 Under 2KB gzipped, no runtime dependencies, non-blocking, and silent on failure.
 
 ```bash
-npm install statless-telemetry
+npm install @statless/telemetry
 ```
 
 ```ts
-import { configure, track } from "statless-telemetry";
+import { configure, track } from "@statless/telemetry";
 
 // Configure your collector endpoint (or set STATLESS_TELEMETRY_URL)
 configure({ endpoint: "https://telemetry.example.com/v1/telemetry/ping" });

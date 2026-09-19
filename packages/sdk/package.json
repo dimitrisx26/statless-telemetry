@@ -1,5 +1,5 @@
 {
-  "name": "statless-telemetry",
+  "name": "@statless/telemetry",
   "version": "0.1.0",
   "description": "Zero-dependency, cookie-free usage telemetry for developer CLIs and npm packages. Opt-out aware, pseudonymous rotating hashes, works standalone or self-hosted.",
   "license": "MIT",
