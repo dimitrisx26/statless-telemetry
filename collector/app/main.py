@@ -351,12 +351,13 @@ async def index() -> JSONResponse:
             {
                 "service": "statless-telemetry",
                 "version": __version__,
-                "privacy": "IPs never stored; HMAC-hashed with a rotating in-memory salt",
+                "privacy": "IPs never stored on disk; HMAC-hashed with a rotating in-memory salt",
                 "usage": {
                     "ping": f"POST {base}/v1/telemetry/ping",
                     "stats": f"{base}/v1/stats/YOUR-PACKAGE",
                     "overview": f"{base}/v1/overview",
                     "export": f"{base}/v1/export/YOUR-PACKAGE",
+                    "privacy": f"{base}/privacy",
                 },
             }
         )
@@ -505,11 +506,7 @@ def _render_privacy_html() -> str:
     controller_contact = (
         html.escape(s.controller_contact) if s.controller_contact else "Not configured by operator"
     )
-    dpo = (
-        html.escape(s.data_protection_officer)
-        if s.data_protection_officer
-        else "None designated"
-    )
+    dpo = html.escape(s.data_protection_officer) if s.data_protection_officer else "None designated"
     legal_basis = html.escape(s.legal_basis)
     authority = (
         html.escape(s.supervisory_authority)

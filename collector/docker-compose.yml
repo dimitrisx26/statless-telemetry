@@ -21,6 +21,9 @@ services:
       # INGEST_TOKEN: ${INGEST_TOKEN:-}
       # Protect the stats/overview/export endpoints:
       # STATS_TOKEN: ${STATS_TOKEN:-}
+      # Operator / data controller identity (rendered at /privacy):
+      # CONTROLLER_NAME: ${CONTROLLER_NAME:-My Organization}
+      # CONTROLLER_CONTACT: ${CONTROLLER_CONTACT:-privacy@example.com}
     volumes:
       - ./data:/app/data
     restart: unless-stopped
