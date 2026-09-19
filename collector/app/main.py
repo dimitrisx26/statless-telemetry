@@ -4,8 +4,8 @@ Endpoints:
     POST /v1/telemetry/ping     Ingest one CLI / package execution ping (204 No Content)
     GET  /v1/stats/{package}    JSON aggregates for one package
     GET  /v1/overview           Per-package totals across the collector
-    GET  /v1/export/{package}   NDJSON dump of raw pings (Art. 15/20 data access)
-    DELETE /v1/packages/{package}  Erase all pings for one package (Art. 17, STATS_TOKEN gated)
+    GET  /v1/export/{package}   NDJSON dump of raw pings (maintainer data export)
+    DELETE /v1/packages/{package}  Erase pings for one package (maintainer purge, token-gated)
     GET  /privacy               Human-readable privacy notice
     GET  /healthz               Liveness probe
 """
@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import hmac
+import html
 import json
 import logging
 import re
@@ -471,7 +472,7 @@ async def export(package: str, request: Request, token: str = "") -> Response:
 async def delete_package(
     package: str, request: Request, response: Response, token: str = ""
 ) -> ErasureResult | JSONResponse:
-    """GDPR Art. 17 erasure: hard-delete every stored ping for one package.
+    """Hard-delete every stored ping for one package (maintainer bulk purge).
 
     Requires STATS_TOKEN to be configured AND supplied, so a public collector
     never lets strangers wipe other operators' data.
@@ -498,61 +499,124 @@ async def delete_package(
     return ErasureResult(ok=True, deleted=deleted)
 
 
-_PRIVACY_HTML = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="robots" content="noindex, nofollow" />
-<title>statless-telemetry - privacy notice</title>
-<style>
-  :root { color-scheme: light dark; }
-  body { max-width: 42rem; margin: 3rem auto; padding: 0 1.25rem; line-height: 1.6;
-         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-         Helvetica, Arial, sans-serif; }
-  h1 { font-size: 1.5rem; } h2 { font-size: 1.05rem; margin-top: 2rem; }
-  code { background: rgba(127,127,127,.18); padding: .1rem .3rem; border-radius: .25rem; }
-</style>
-</head>
-<body>
-<h1>statless-telemetry privacy notice</h1>
-<p>This collector exists to tell maintainers which subcommands people run, which
-package versions are in the wild, and when usage happens. It is deliberately
-tiny and privacy-first.</p>
-<h2>What is stored</h2>
-<ul>
-  <li>Package name, reported version, subcommand, and execution duration.</li>
-  <li>Node.js major version, operating-system platform, and a CI yes/no flag.</li>
-  <li>Timestamp (UTC) and a rotating <code>platform_hash</code>.</li>
-</ul>
-<h2>What is never stored</h2>
-<ul>
-  <li>No cookies, no device identifiers, no fingerprinting, no persistent IDs.</li>
-  <li>No raw IP addresses. The IP is HMAC-SHA256 hashed with an ephemeral
-      in-memory salt that rotates every 24 hours, then combined with the
-      reported platform; the hash cannot be reversed.</li>
-  <li>No filesystem paths, repository names, environment values, or arguments.</li>
-  <li>No command output.</li>
-</ul>
-<h2>Opting out</h2>
-<p>Set <code>DO_NOT_TRACK=1</code> or <code>STATLESS_OPTOUT=1</code> in your
-environment. The SDK then returns before sending anything, so no request ever
-leaves the machine.</p>
-<h2>Retention</h2>
-<p>Pings older than 180 days are deleted automatically. Operators may change the
-window in either direction, including disabling automatic deletion entirely.</p>
-<h2>Access and erasure</h2>
-<p>The collector offers <code>/v1/export/&lt;package&gt;</code> (portable NDJSON dump,
-GDPR Art. 15/20) and <code>DELETE /v1/packages/&lt;package&gt;</code> (hard deletion,
-GDPR Art. 17) for package maintainers, gated by the operator's stats token.</p>
-</body>
-</html>
-"""
+def _render_privacy_html() -> str:
+    s = get_settings()
+    controller_name = html.escape(s.controller_name)
+    controller_contact = (
+        html.escape(s.controller_contact) if s.controller_contact else "Not configured by operator"
+    )
+    dpo = (
+        html.escape(s.data_protection_officer)
+        if s.data_protection_officer
+        else "None designated"
+    )
+    legal_basis = html.escape(s.legal_basis)
+    authority = (
+        html.escape(s.supervisory_authority)
+        if s.supervisory_authority
+        else "Competent local Data Protection Authority"
+    )
+    retention = (
+        f"{s.retention_days} days"
+        if s.retention_days > 0
+        else "Indefinite (operator-managed storage limitation)"
+    )
+
+    return (
+        "<!doctype html>\n"
+        '<html lang="en">\n'
+        "<head>\n"
+        '<meta charset="utf-8" />\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1" />\n'
+        '<meta name="robots" content="noindex, nofollow" />\n'
+        "<title>statless-telemetry - privacy notice</title>\n"
+        "<style>\n"
+        "  :root { color-scheme: light dark; }\n"
+        "  body { max-width: 44rem; margin: 3rem auto; padding: 0 1.25rem; line-height: 1.6;\n"
+        '         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,\n'
+        "         Helvetica, Arial, sans-serif; }\n"
+        "  h1 { font-size: 1.5rem; } h2 { font-size: 1.1rem; margin-top: 1.75rem;\n"
+        "         border-bottom: 1px solid rgba(127,127,127,.25); padding-bottom: .25rem; }\n"
+        "  code { background: rgba(127,127,127,.18); padding: .1rem .3rem;\n"
+        "         border-radius: .25rem; font-size: .9em; }\n"
+        "  ul { padding-left: 1.25rem; }\n"
+        "  .meta { background: rgba(127,127,127,.08); border-left: 3px solid #2563eb;\n"
+        "         padding: .75rem 1rem; margin: 1rem 0; border-radius: 0 .25rem .25rem 0; }\n"
+        "  .meta p { margin: .25rem 0; }\n"
+        "</style>\n"
+        "</head>\n"
+        "<body>\n"
+        "<h1>statless-telemetry privacy notice</h1>\n"
+        "<p>This collector provides usage analytics for developer CLIs and npm packages\n"
+        "(subcommand usage, version adoption, and platform distribution). It is engineered\n"
+        "around strict data minimization and storage limitation.</p>\n"
+        '<div class="meta">\n'
+        f"  <p><strong>Data Controller:</strong> {controller_name}</p>\n"
+        f"  <p><strong>Privacy Contact:</strong> {controller_contact}</p>\n"
+        f"  <p><strong>Data Protection Officer:</strong> {dpo}</p>\n"
+        f"  <p><strong>Documented Legal Basis:</strong> {legal_basis}</p>\n"
+        f"  <p><strong>Retention Period:</strong> {retention}</p>\n"
+        "</div>\n"
+        "<h2>What is processed and stored</h2>\n"
+        "<ul>\n"
+        "  <li><strong>Package metadata:</strong> Package name, reported version,\n"
+        "      subcommand name, and execution duration in milliseconds.</li>\n"
+        "  <li><strong>Environment parameters:</strong> Node.js major version, operating system\n"
+        "      identifier (e.g. <code>darwin</code>, <code>linux</code>), and a CI provider boolean"
+        " flag.</li>\n"
+        "  <li><strong>Timestamp &amp; Pseudonymous Hash:</strong> UTC timestamp and a"
+        " pseudonymous <code>platform_hash</code>.</li>\n"
+        "</ul>\n"
+        "<h2>Pseudonymization and network IP handling</h2>\n"
+        "<ul>\n"
+        "  <li><strong>Raw IP addresses are never saved to disk or logs:</strong> When an HTTP ping"
+        " is received,\n"
+        "      the client IP address is processed in memory to compute an HMAC-SHA256 hash using an"
+        " ephemeral salt.</li>\n"
+        f"  <li><strong>Ephemeral 24-hour salt rotation:</strong> The hashing salt rotates every"
+        f" {s.salt_rotate_hours:g} hours\n"
+        "      and is never written to disk. Once rotated, past hashes cannot be correlated with"
+        " new requests.\n"
+        "      Within any rotation window, the hash serves strictly as a pseudonymous counter"
+        " for unique installations.</li>\n"
+        "  <li><strong>No local persistence or cookies:</strong> No tracking cookies, local storage"
+        " entries, or device UUIDs are stored on the client machine.</li>\n"
+        "  <li><strong>No sensitive context:</strong> No filesystem paths, repository URLs,"
+        " environment variables,\n"
+        "      command-line arguments, or execution outputs are ever collected or stored.</li>\n"
+        "</ul>\n"
+        "<h2>Retention and storage limitation (GDPR Art. 5(1)(e))</h2>\n"
+        f"<p>Telemetry pings are retained for {retention}. An automated background pruning loop\n"
+        "runs daily to permanently delete records exceeding this window.</p>\n"
+        "<h2>Data subject rights and limitations (GDPR Art. 11, 15-21)</h2>\n"
+        "<p>Because telemetry records are pseudonymous and intentionally disconnected from names,\n"
+        "email addresses, user accounts, or persistent device IDs, the controller cannot directly\n"
+        "identify which records belong to a specific person (pursuant to GDPR Art. 11).\n"
+        "Consequently, individual access (Art. 15) and erasure (Art. 17) requests cannot be\n"
+        "fulfilled without additional identifying telemetry information (e.g. exact timestamp,\n"
+        "IP, and platform for that day).</p>\n"
+        "<p>Package maintainers may export aggregate datasets using"
+        " <code>/v1/export/&lt;package&gt;</code>\n"
+        "or perform bulk package purges using <code>DELETE /v1/packages/&lt;package&gt;</code>\n"
+        "(gated by the operator's stats token).</p>\n"
+        "<h2>Right to object and opt out</h2>\n"
+        "<p>Developers can opt out at any time on their machine. When either environment variable\n"
+        "is present, the client SDK immediately terminates before initiating any network"
+        " connection:</p>\n"
+        "<pre><code>DO_NOT_TRACK=1\nSTATLESS_OPTOUT=1</code></pre>\n"
+        "<p>Applications can also disable telemetry programmatically via\n"
+        "<code>configure({ enabled: false })</code>.</p>\n"
+        "<h2>Right to lodge a complaint (GDPR Art. 77)</h2>\n"
+        f"<p>You have the right to lodge a complaint regarding data processing with your\n"
+        f"competent supervisory authority ({authority}).</p>\n"
+        "</body>\n"
+        "</html>\n"
+    )
 
 
 @app.get("/privacy", include_in_schema=False)
 async def privacy() -> Response:
-    resp = _no_store(HTMLResponse(_PRIVACY_HTML))
+    resp = _no_store(HTMLResponse(_render_privacy_html()))
     resp.headers["Content-Security-Policy"] = (
         "default-src 'none'; style-src 'unsafe-inline'; form-action 'none'; base-uri 'none'"
     )

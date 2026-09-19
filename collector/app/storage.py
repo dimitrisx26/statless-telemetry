@@ -186,7 +186,7 @@ async def delete_old_events(retention_days: int) -> int:
 
 
 async def purge_package(package: str) -> int:
-    """Hard-delete all pings for one package (Art. 17 erasure helper)."""
+    """Hard-delete all pings for one package (maintainer bulk purge)."""
     async with _session() as session:
         result = cast(
             "CursorResult[Any]", await session.execute(delete(Ping).where(Ping.package == package))
@@ -198,7 +198,7 @@ async def purge_package(package: str) -> int:
 async def iter_export(
     package: str, include_platform_hash: bool = True
 ) -> AsyncIterator[dict[str, Any]]:
-    """Raw ping rows for one package, oldest first, streamed (NDJSON, Art. 15/20 access).
+    """Raw ping rows for one package, oldest first, streamed (NDJSON portable export).
 
     Streaming keeps memory flat no matter how many pings a package has.
     ``include_platform_hash=False`` omits the pseudonymous identifier column -

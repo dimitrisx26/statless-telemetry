@@ -25,6 +25,11 @@ All settings are overridable via environment variables:
     SECURITY_CONTACT  Contact line for /.well-known/security.txt. Replace the mailto
                     placeholder before going public (default: mailto:security@YOUR-DOMAIN.example)
     SECURITY_POLICY Optional Policy URL for /.well-known/security.txt (e.g. your VDP or ToS)
+    CONTROLLER_NAME Legal identity of the data controller (default: "statless-telemetry operator")
+    CONTROLLER_CONTACT Contact email or URL for privacy inquiries
+    DATA_PROTECTION_OFFICER Optional DPO contact email
+    LEGAL_BASIS     Documented legal basis under GDPR Art. 6
+    SUPERVISORY_AUTHORITY Name and/or URL of competent supervisory authority for complaints
     TELEMETRY_HOST / TELEMETRY_PORT  Bind address for the `statless-telemetry` entrypoint
                     (namespaced to avoid colliding with shell/CI HOST & PORT; defaults
                     0.0.0.0 / 8000)
@@ -56,6 +61,14 @@ class Settings(BaseSettings):
     base_url: str = "http://localhost:8000"
     security_contact: str = "mailto:security@YOUR-DOMAIN.example"
     security_policy: str = ""
+    controller_name: str = "statless-telemetry operator"
+    controller_contact: str = ""
+    data_protection_officer: str = ""
+    legal_basis: str = (
+        "Legitimate interest (operational metrics under GDPR Art. 6(1)(f)) "
+        "or affirmative consent where required by ePrivacy"
+    )
+    supervisory_authority: str = ""
     host: str = Field(default="0.0.0.0", validation_alias="TELEMETRY_HOST")
     port: int = Field(default=8000, ge=1, le=65535, validation_alias="TELEMETRY_PORT")
 

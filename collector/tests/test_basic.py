@@ -495,6 +495,27 @@ async def test_privacy_page_carries_locked_csp(client: AsyncClient) -> None:
     assert r.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
 
 
+async def test_privacy_page_renders_controller_details(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.config import get_settings
+
+    monkeypatch.setenv("CONTROLLER_NAME", "Acme Corp")
+    monkeypatch.setenv("CONTROLLER_CONTACT", "privacy@acme.example")
+    monkeypatch.setenv("DATA_PROTECTION_OFFICER", "dpo@acme.example")
+    get_settings.cache_clear()
+    try:
+        r = await client.get("/privacy")
+        assert r.status_code == 200
+        assert "Acme Corp" in r.text
+        assert "privacy@acme.example" in r.text
+        assert "dpo@acme.example" in r.text
+        assert "platform_hash" in r.text
+        assert "pseudonymous" in r.text
+    finally:
+        get_settings.cache_clear()
+
+
 async def test_robots_and_security_txt(client: AsyncClient) -> None:
     r = await client.get("/robots.txt")
     assert r.status_code == 200
