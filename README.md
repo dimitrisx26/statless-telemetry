@@ -5,8 +5,8 @@
 **Know which subcommands people run, which versions are in the wild, and when - from a sub-2KB SDK with zero runtime dependencies.**
 
 <p>
-  <a href="https://github.com/dimitrisx26/statless-telemetry/actions/workflows/ci.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/dimitrisx26/statless-telemetry/ci.yml?branch=main&amp;style=flat-square&amp;logo=github&amp;label=CI" alt="CI status on main" />
+  <a href="https://github.com/statless/statless-telemetry/actions/workflows/ci.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/statless/statless-telemetry/ci.yml?branch=main&amp;style=flat-square&amp;logo=github&amp;label=CI" alt="CI status on main" />
   </a>
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/collector-AGPLv3-2563EB?style=flat-square" alt="Collector license: AGPLv3" />
@@ -31,7 +31,7 @@
   </a>
 </p>
 
-[Report a bug](https://github.com/dimitrisx26/statless-telemetry/issues) · [Request a feature](https://github.com/dimitrisx26/statless-telemetry/issues) · [Privacy notice](#privacy--opt-out)
+[Report a bug](https://github.com/statless/statless-telemetry/issues) · [Request a feature](https://github.com/statless/statless-telemetry/issues) · [Privacy notice](#privacy--opt-out)
 
 </div>
 
@@ -124,7 +124,7 @@ statless-telemetry answers a narrower question than a product-analytics suite: *
 ### 1 · Run the collector
 
 ```bash
-git clone https://github.com/dimitrisx26/statless-telemetry.git
+git clone https://github.com/statless/statless-telemetry.git
 cd statless-telemetry/collector
 docker compose up -d --build
 curl http://localhost:8000/healthz   # {"ok":true}

@@ -1,11 +1,11 @@
 blank_issues_enabled: false
 contact_links:
   - name: Ask a question / share your setup
-    url: https://github.com/dimitrisx26/statless-telemetry/discussions
+    url: https://github.com/statless/statless-telemetry/discussions
     about: Setup help, SDK integration questions, and show-and-tell live in Discussions.
   - name: Read the docs first
-    url: https://github.com/dimitrisx26/statless-telemetry#quick-start
+    url: https://github.com/statless/statless-telemetry#quick-start
     about: Quick start, payload reference, endpoints, and configuration tables.
   - name: Report a security vulnerability
-    url: https://github.com/dimitrisx26/statless-telemetry/security/advisories/new
+    url: https://github.com/statless/statless-telemetry/security/advisories/new
     about: Please report vulnerabilities privately, not as a public issue.

@@ -45,7 +45,7 @@ via the `X-Stats-Token` header (preferred) or `?token=`.
 
 ## Configuration
 
-See the main [README](https://github.com/dimitrisx26/statless-telemetry#configuration)
+See the main [README](https://github.com/statless/statless-telemetry#configuration)
 for every environment variable (`DATABASE_URL`, `SERVER_SECRET`, `TRUST_PROXY`,
 `RATE_LIMIT`, `RETENTION_DAYS`, `STATS_TOKEN`, `INGEST_TOKEN`,
 `CONTROLLER_NAME`, `CONTROLLER_CONTACT`, `LEGAL_BASIS`, `TELEMETRY_ENABLED`, ...).

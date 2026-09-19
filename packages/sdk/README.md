@@ -41,7 +41,7 @@ environment variable. Private collectors that set `INGEST_TOKEN` are supported w
 - **GDPR Transparency (Art. 13):** Inform users in your CLI documentation or terminal banner that usage metrics are collected, state your purpose and legal basis, and document how they can opt out (`DO_NOT_TRACK=1`).
 - **Data Processor Agreements (Art. 28):** When self-hosting the collector, you control the data. If pointing to a hosted or third-party endpoint, ensure you have an appropriate Data Processing Agreement in place.
 
-See the [repository README](https://github.com/dimitrisx26/statless-telemetry#readme)
+See the [repository README](https://github.com/statless/statless-telemetry#readme)
 for Commander.js and Yargs integrations.
 
 ## License

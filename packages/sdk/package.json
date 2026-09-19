@@ -57,13 +57,13 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/dimitrisx26/statless-telemetry.git",
+    "url": "git+https://github.com/statless/statless-telemetry.git",
     "directory": "packages/sdk"
   },
   "bugs": {
-    "url": "https://github.com/dimitrisx26/statless-telemetry/issues"
+    "url": "https://github.com/statless/statless-telemetry/issues"
   },
-  "homepage": "https://github.com/dimitrisx26/statless-telemetry#readme",
+  "homepage": "https://github.com/statless/statless-telemetry#readme",
   "publishConfig": {
     "access": "public",
     "provenance": true

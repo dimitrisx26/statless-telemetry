@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         Thanks for the report. Please **redact** tokens, private URLs, and anything you don't want public.
-        For setup or usage questions, use [Discussions](https://github.com/dimitrisx26/statless-telemetry/discussions) instead.
+        For setup or usage questions, use [Discussions](https://github.com/statless/statless-telemetry/discussions) instead.
   - type: dropdown
     id: surface
     attributes:
